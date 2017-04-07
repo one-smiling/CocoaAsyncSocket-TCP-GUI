@@ -231,7 +231,8 @@
 	});
 	
 	// Echo message back to client
-	[sock writeData:data withTimeout:-1 tag:ECHO_MSG];
+    [sock writeData:data withTimeout:-1 tag:ECHO_MSG];
+
 }
 
 /**

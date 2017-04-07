@@ -99,7 +99,7 @@ static const int ddLogLevel = LOG_LEVEL_INFO;
 	#endif
 	
 	// Add the view controller's view to the window and display.
-	[self.window addSubview:self.viewController.view];
+	[self.window setRootViewController:self.viewController];
 	[self.window makeKeyAndVisible];
 	
 	return YES;

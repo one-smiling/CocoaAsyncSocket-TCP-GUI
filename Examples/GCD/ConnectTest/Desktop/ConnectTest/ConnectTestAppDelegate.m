@@ -5,6 +5,7 @@
 
 // Log levels: off, error, warn, info, verbose
 static const int ddLogLevel = LOG_LEVEL_INFO;
+#define FORMAT(format, ...) [NSString stringWithFormat:(format), ##__VA_ARGS__]
 
 #define USE_SECURE_CONNECTION 0
 
@@ -12,6 +13,11 @@ static const int ddLogLevel = LOG_LEVEL_INFO;
 @implementation ConnectTestAppDelegate
 
 @synthesize window;
+@synthesize addrField;
+@synthesize portField;
+@synthesize messageField;
+@synthesize sendButton;
+@synthesize logView;
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
 {
@@ -51,17 +57,31 @@ static const int ddLogLevel = LOG_LEVEL_INFO;
 	}
 	#else
 	{
-		NSString *host = @"google.com";
-		uint16_t port = 80;
-	
-		
-		DDLogInfo(@"Connecting to \"%@\" on port %hu...", host, port);
-		
-		NSError *error = nil;
-		if (![asyncSocket connectToHost:host onPort:port error:&error])
-		{
-			DDLogError(@"Error connecting: %@", error);
-		}
+//		NSString *host = @"google.com";
+//		uint16_t port = 80;
+//	
+//		
+//		DDLogInfo(@"Connecting to \"%@\" on port %hu...", host, port);
+//		
+//		NSError *error = nil;
+//		if (![asyncSocket connectToHost:host onPort:port error:&error])
+//		{
+//			DDLogError(@"Error connecting: %@", error);
+//		}
+        
+        NSString *host = @"localhost";
+        uint16_t port = 8002;
+        self.portField.stringValue = [NSString stringWithFormat:@"%d",port];
+        self.addrField.stringValue = host;
+        
+        DDLogInfo(@"Connecting to \"%@\" on port %hu...", host, port);
+        
+        NSError *error = nil;
+        if (![asyncSocket connectToHost:host onPort:port error:&error])
+        {
+            DDLogError(@"Error connecting: %@", error);
+        }
+        [asyncSocket readDataWithTimeout:-1 tag:0];
 
 		// You can also specify an optional connect timeout.
 		
@@ -73,6 +93,93 @@ static const int ddLogLevel = LOG_LEVEL_INFO;
 		
 	}
 	#endif
+}
+- (IBAction)send:(id)sender
+{
+    NSString *host = [addrField stringValue];
+    if ([host length] == 0)
+    {
+        [self logError:@"Address required"];
+        return;
+    }
+    
+    int port = [portField intValue];
+    if (port <= 0 || port > 65535)
+    {
+        [self logError:@"Valid port required"];
+        return;
+    }
+    
+    NSString *msg = [messageField stringValue];
+    if ([msg length] == 0)
+    {
+        [self logError:@"Message required"];
+        return;
+    }
+    
+    msg = [NSString stringWithFormat:@"%@\r\n",msg];
+
+    NSData *data = [msg dataUsingEncoding:NSUTF8StringEncoding];
+    
+    [asyncSocket writeData:data withTimeout:-1 tag:tag];
+//    [asyncSocket readDataToData:[GCDAsyncSocket CRLFData] withTimeout:-1 tag:tag];
+    
+    [asyncSocket readDataWithTimeout:-1 tag:tag];
+    [self logMessage:FORMAT(@"SENT (%i): %@", (int)tag, msg)];
+    
+    tag++;
+}
+
+- (void)scrollToBottom
+{
+    NSScrollView *scrollView = [logView enclosingScrollView];
+    NSPoint newScrollOrigin;
+    
+    if ([[scrollView documentView] isFlipped])
+        newScrollOrigin = NSMakePoint(0.0F, NSMaxY([[scrollView documentView] frame]));
+    else
+        newScrollOrigin = NSMakePoint(0.0F, 0.0F);
+    
+    [[scrollView documentView] scrollPoint:newScrollOrigin];
+}
+
+- (void)logError:(NSString *)msg
+{
+    NSString *paragraph = [NSString stringWithFormat:@"%@\n", msg];
+    
+    NSMutableDictionary *attributes = [NSMutableDictionary dictionaryWithCapacity:1];
+    [attributes setObject:[NSColor redColor] forKey:NSForegroundColorAttributeName];
+    
+    NSAttributedString *as = [[NSAttributedString alloc] initWithString:paragraph attributes:attributes];
+    
+    [[logView textStorage] appendAttributedString:as];
+    [self scrollToBottom];
+}
+
+- (void)logInfo:(NSString *)msg
+{
+    NSString *paragraph = [NSString stringWithFormat:@"%@\n", msg];
+    
+    NSMutableDictionary *attributes = [NSMutableDictionary dictionaryWithCapacity:1];
+    [attributes setObject:[NSColor purpleColor] forKey:NSForegroundColorAttributeName];
+    
+    NSAttributedString *as = [[NSAttributedString alloc] initWithString:paragraph attributes:attributes];
+    
+    [[logView textStorage] appendAttributedString:as];
+    [self scrollToBottom];
+}
+
+- (void)logMessage:(NSString *)msg
+{
+    NSString *paragraph = [NSString stringWithFormat:@"%@\n", msg];
+    
+    NSMutableDictionary *attributes = [NSMutableDictionary dictionaryWithCapacity:1];
+    [attributes setObject:[NSColor blackColor] forKey:NSForegroundColorAttributeName];
+    
+    NSAttributedString *as = [[NSAttributedString alloc] initWithString:paragraph attributes:attributes];
+    
+    [[logView textStorage] appendAttributedString:as];
+    [self scrollToBottom];
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -141,11 +248,16 @@ static const int ddLogLevel = LOG_LEVEL_INFO;
 
 - (void)socket:(GCDAsyncSocket *)sock didWriteDataWithTag:(long)tag
 {
+
 	DDLogInfo(@"socket:%p didWriteDataWithTag:%ld", sock, tag);
 }
 
 - (void)socket:(GCDAsyncSocket *)sock didReadData:(NSData *)data withTag:(long)tag
 {
+    NSString *msg = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    
+    [self logMessage:FORMAT(@"RECV (%li): %@", tag, msg)];
+
 	DDLogInfo(@"socket:%p didReadData:withTag:%ld", sock, tag);
 }
 
